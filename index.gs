@@ -1,65 +1,100 @@
+// 実行関数
 function myFunction() {
-  getSlackMessages()
+  const messages = getSlackMessages()
+  putLikes(messages)
+}
+// 定期的にSlackからメッセージを取得するためのトリガーを設定
+function setTrigger() {
+  ScriptApp.newTrigger("myFunction").everyDays(1).atHour(20).create()
 }
 
 // Slack APIのトークン
-const SLACK_TOKEN = getVal("SLACK_TOKEN");
+const SLACK_TOKEN = getVal("SLACK_TOKEN")
 // SlackチャンネルID
-const SLACK_CHANNEL_ID = getVal("SLACK_CHANNEL_ID");
-// Slack APIのエンドポイント
-const SLACK_API_ENDPOINT = "https://slack.com/api/conversations.history";
+const SLACK_QIITA_CHANNEL_ID = getVal("SLACK_QIITA_CHANNEL_ID")
+const SLACK_BOT_CHANNEL_ID = getVal("SLACK_BOT_CHANNEL_ID")
+// Slack APIのメッセージ取得用エンドポイント
+const SLACK_GET_MESSAGES = "https://slack.com/api/conversations.history"
+// Slack APIのメッセージ送信用エンドポイント
+const SLACK_POST_MESSAGES = "https://slack.com/api/chat.postMessage"
+// Qiita APIのトークン
+const QIITA_TOKEN = getVal("QIITA_TOKEN")
 // Qiita.comのリンクの正規表現
-const QIITA_LINK_REGEX = /https?:\/\/qiita\.com\/\w+\/items\/\w+/g;
+const QIITA_LINK_REGEX = /https?:\/\/qiita\.com\/\w+\/items\/\w+/g
+// QiitaのリンクからuserNameとitemIdを抽出する正規表現
+const QIITA_EXTRACTION_REGEX = /https:\/\/qiita\.com\/([^\/]+)\/items\/([^\/]+)/
 
-// Slackからメッセージを取得する関数
+// 任意のチャンネルからメッセージを取得
 function getSlackMessages() {
-  const headers = { 
-    'Authorization': 'Bearer ' + SLACK_TOKEN 
-  }
   const options = {
-      "method" : "post",
-      'contentType': 'application/json; charset=utf-8',
-      "headers": headers
+    method: "post",
+    contentType: "application/json; charset=utf-8",
+    headers: {
+      Authorization: "Bearer " + SLACK_TOKEN,
+    },
   }
-  const requestUrl = SLACK_API_ENDPOINT + "?channel=" + SLACK_CHANNEL_ID + "&pretty=1&oldest=" + timestamp()
-  const response = UrlFetchApp.fetch(requestUrl, options);
-  const data = JSON.parse(response.getContentText());
-  const messages = data.messages;
-  
-  messages.forEach((message) => {
-    const text = message.text;
-    const links = text.match(QIITA_LINK_REGEX);
-    
-    if (links) {
-      links.forEach(function(link) {
-        // pressHeart(link);
-      })
-    }
+  const requestUrl = `${SLACK_GET_MESSAGES}?channel=${SLACK_QIITA_CHANNEL_ID}&pretty=1&oldest=${timestamp() - 84000}`
+  const response = UrlFetchApp.fetch(requestUrl, options)
+  const messages = JSON.parse(response.getContentText()).messages
+  const results = []
+  messages.map((message) => {
+    const text = message.text
+    const links = text.match(QIITA_LINK_REGEX)
+
+    links && results.push(links)
+  })
+  return results
+}
+// いいねを押下
+function putLikes(results) {
+  const options = {
+    method: "put",
+    contentType: "application/json; charset=utf-8",
+    headers: {
+      Authorization: "Bearer " + QIITA_TOKEN,
+    },
+  }
+
+  let chkFlg = false
+  results.map((links) => {
+    links.map((item) => {
+      const matches = item.match(QIITA_EXTRACTION_REGEX)
+      if (!matches) return
+      const itemId = matches[2]
+      const requestUrl = `https://qiita.com/api/v2/items/${itemId}/like`
+      try {
+        const response = UrlFetchApp.fetch(requestUrl, options)
+        if (response.getResponseCode() !== 204) throw new Error()
+      } catch (e) {
+        sendErrorMessage("いいね、失敗してまっせ。")
+      }
+    })
   })
 }
+function sendErrorMessage(message) {
+  const options = {
+    method: "post",
+    payload: JSON.stringify({
+      text: message,
+      channel: SLACK_BOT_CHANNEL_ID,
+    }),
+    contentType: "application/json; charset=utf-8",
+    headers: {
+      Authorization: "Bearer " + SLACK_TOKEN,
+    },
+  }
+  const requestUrl = SLACK_POST_MESSAGES
+  UrlFetchApp.fetch(requestUrl, options)
+}
+// 環境変数から値を取得する
 function getVal(e) {
   return PropertiesService.getScriptProperties().getProperty(e)
 }
-// 日本時間で今日の開始時刻のUnixタイムスタンプを取得する関数
+// 日本時間で今日の0時0分のUnixタイムスタンプを取得
 function timestamp() {
   const now = new Date()
-  const timezoneOffset = 9 * 60; // 日本時間はUTC+9
-  now.setMinutes(now.getMinutes() + now.getTimezoneOffset() + timezoneOffset);
-  now.setHours(0, 0, 0, 0);
-  return Math.floor(now.getTime() / 1000);
+  const timezoneOffset = 9 * 60 // 日本時間はUTC+9
+  now.setMinutes(now.getMinutes() + now.getTimezoneOffset() + timezoneOffset)
+  now.setHours(0, 0, 0, 0)
+  return Math.floor(now.getTime() / 1000)
 }
-// ハートを押下する関数
-function pressHeart(link) {
-  // Qiitaの記事にアクセスし、ハートを押下する処理を実装する
-  // ここでは、具体的な実装は示しません
-}
-// 定期的にSlackからメッセージを取得するためのトリガーを設定する関数
-// https://auto-worker.com/blog/?p=6397
-function setTrigger() {
-  ScriptApp.newTrigger("getSlackMessages")
-           .everyDays(1)
-           .atHour(20)
-           .create();
-}
-
-
