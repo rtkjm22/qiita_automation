@@ -33,7 +33,7 @@ function getSlackMessages() {
       Authorization: "Bearer " + SLACK_TOKEN,
     },
   }
-  const requestUrl = `${SLACK_GET_MESSAGES}?channel=${SLACK_QIITA_CHANNEL_ID}&pretty=1&oldest=${timestamp() - 84000}`
+  const requestUrl = `${SLACK_GET_MESSAGES}?channel=${SLACK_QIITA_CHANNEL_ID}&pretty=1&oldest=${timestamp()}`
   const response = UrlFetchApp.fetch(requestUrl, options)
   const messages = JSON.parse(response.getContentText()).messages
   const results = []
@@ -55,7 +55,6 @@ function putLikes(results) {
     },
   }
 
-  let chkFlg = false
   results.map((links) => {
     links.map((item) => {
       const matches = item.match(QIITA_EXTRACTION_REGEX)
