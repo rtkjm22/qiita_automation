@@ -1,7 +1,7 @@
 // 実行関数
 function myFunction() {
   const messages = getSlackMessages()
-  putLikes(messages)
+  putStocks(messages)
 }
 // 定期的にSlackからメッセージを取得するためのトリガーを設定
 function setTrigger() {
@@ -19,8 +19,10 @@ const SLACK_GET_MESSAGES = "https://slack.com/api/conversations.history"
 const SLACK_POST_MESSAGES = "https://slack.com/api/chat.postMessage"
 // Qiita APIのトークン
 const QIITA_TOKEN = getVal("QIITA_TOKEN")
+// Qiitaのユーザー名
+const QIITA_USER_NAME = getVal("QIITA_USER_NAME")
 // Qiita.comのリンクの正規表現
-const QIITA_LINK_REGEX = /https?:\/\/qiita\.com\/\w+\/items\/\w+/g
+const QIITA_LINK_REGEX = /https?:\/\/qiita\.com\/[\w-._~:/?#[\]@!$&'()*+,;=]+\/items\/[\w-._~:/?#[\]@!$&'()*+,;=]+/g
 // QiitaのリンクからuserNameとitemIdを抽出する正規表現
 const QIITA_EXTRACTION_REGEX = /https:\/\/qiita\.com\/([^\/]+)\/items\/([^\/]+)/
 
@@ -45,8 +47,8 @@ function getSlackMessages() {
   })
   return results
 }
-// いいねを押下
-function putLikes(results) {
+// ストックに追加
+function putStocks(results) {
   const options = {
     method: "put",
     contentType: "application/json; charset=utf-8",
@@ -59,13 +61,15 @@ function putLikes(results) {
     links.map((item) => {
       const matches = item.match(QIITA_EXTRACTION_REGEX)
       if (!matches) return
+      const userName = matches[1]
+      if (userName === QIITA_USER_NAME) return
       const itemId = matches[2]
-      const requestUrl = `https://qiita.com/api/v2/items/${itemId}/like`
+      const requestUrl = `https://qiita.com/api/v2/items/${itemId}/stock`
       try {
         const response = UrlFetchApp.fetch(requestUrl, options)
         if (response.getResponseCode() !== 204) throw new Error()
       } catch (e) {
-        sendErrorMessage("いいね、失敗してまっせ。")
+        sendErrorMessage("ストック、失敗してまっせ。")
       }
     })
   })
