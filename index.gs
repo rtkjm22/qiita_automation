@@ -1,7 +1,7 @@
 // 実行関数
 function myFunction() {
   const messages = getSlackMessages()
-  putStocks(messages)
+  putStock(messages)
 }
 // 定期的にSlackからメッセージを取得するためのトリガーを設定
 function setTrigger() {
@@ -35,6 +35,7 @@ function getSlackMessages() {
       Authorization: "Bearer " + SLACK_TOKEN,
     },
   }
+  
   const requestUrl = `${SLACK_GET_MESSAGES}?channel=${SLACK_QIITA_CHANNEL_ID}&pretty=1&oldest=${timestamp()}`
   const response = UrlFetchApp.fetch(requestUrl, options)
   const messages = JSON.parse(response.getContentText()).messages
@@ -47,7 +48,7 @@ function getSlackMessages() {
   })
   return results
 }
-// ストックに追加
+// ストックを追加
 function putStocks(results) {
   const options = {
     method: "put",
@@ -60,11 +61,8 @@ function putStocks(results) {
   results.map((links) => {
     links.map((item) => {
       const matches = item.match(QIITA_EXTRACTION_REGEX)
-      if (!matches) return
-      const userName = matches[1]
-      if (userName === QIITA_USER_NAME) return
-      const itemId = matches[2]
-      const requestUrl = `https://qiita.com/api/v2/items/${itemId}/stock`
+      if (!matches || matches[1] === QIITA_USER_NAME) return
+      const requestUrl = `https://qiita.com/api/v2/items/${matches[2]}/stock`
       try {
         const response = UrlFetchApp.fetch(requestUrl, options)
         if (response.getResponseCode() !== 204) throw new Error()
@@ -86,8 +84,7 @@ function sendErrorMessage(message) {
       Authorization: "Bearer " + SLACK_TOKEN,
     },
   }
-  const requestUrl = SLACK_POST_MESSAGES
-  UrlFetchApp.fetch(requestUrl, options)
+  UrlFetchApp.fetch(SLACK_POST_MESSAGES, options)
 }
 // 環境変数から値を取得する
 function getVal(e) {
@@ -101,3 +98,4 @@ function timestamp() {
   now.setHours(0, 0, 0, 0)
   return Math.floor(now.getTime() / 1000)
 }
+
